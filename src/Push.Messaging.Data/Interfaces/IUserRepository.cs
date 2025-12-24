@@ -4,6 +4,7 @@ namespace Push.Messaging.Data.Interfaces;
 
 public interface IUserRepository
 {
-    Task<List<User>> GetAllAsync();
     Task<User?> GetByIdAsync(int id);
+    Task<User?> GetByUserNameAsync(string userName);
+    Task<List<User>> GetPagedAsync(int page, int pageSize);
 }

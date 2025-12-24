@@ -8,13 +8,15 @@ public class UserCacheRefreshWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IUserCache _cache;
+    private readonly int _pageSize;
 
     public UserCacheRefreshWorker(
         IServiceScopeFactory scopeFactory,
-        IUserCache cache)
+        IUserCache cache,IConfiguration config)
     {
         _scopeFactory = scopeFactory;
         _cache = cache;
+        _pageSize = config.GetValue<int>("UserCache:PageSize");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -22,19 +24,27 @@ public class UserCacheRefreshWorker : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             using var scope = _scopeFactory.CreateScope();
-            var userRepository = scope.ServiceProvider
-                .GetRequiredService<IUserRepository>();
+            var repo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
 
-            var users = await userRepository.GetAllAsync();
+            var page = 0;
 
-            foreach (var user in users)
+            while (true)
             {
-                await _cache.SetAsync(new UserCacheDto
+                var users = await repo.GetPagedAsync(page, _pageSize);
+                if (users.Count == 0)
+                    break;
+
+                foreach (var user in users)
                 {
-                    Id = user.Id,
-                    UserName = user.UserName,
-                    IsActive = user.IsActive
-                });
+                    await _cache.SetAsync(new UserCacheDto
+                    {
+                        Id = user.Id,
+                        UserName = user.UserName,
+                        IsActive = user.IsActive
+                    });
+                }
+
+                page++;
             }
 
             await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);

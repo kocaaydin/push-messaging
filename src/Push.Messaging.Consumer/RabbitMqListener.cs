@@ -11,6 +11,9 @@ namespace Push.Messaging.Consumer;
 
 public class RabbitMqListener : BackgroundService
 {
+    private const int BatchSize = 100;
+    private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(2);
+
     private readonly IConnectionFactory _factory;
     private readonly RabbitMqOptions _options;
     private readonly FirebasePushHandler _handler;
@@ -31,6 +34,7 @@ public class RabbitMqListener : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _connection = await _factory.CreateConnectionAsync(stoppingToken);
+        
         _channel = await _connection.CreateChannelAsync();
 
         await _channel.QueueDeclareAsync(
@@ -40,31 +44,59 @@ public class RabbitMqListener : BackgroundService
             autoDelete: false,
             cancellationToken: stoppingToken);
 
-        await _channel.BasicQosAsync(0, 10, false, stoppingToken);
+        await _channel.BasicQosAsync(0, BatchSize, false, stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
+        var buffer = new List<(ulong tag, NotificationMessage msg)>();
+        var lastFlush = DateTime.UtcNow;
+        var lockObj = new object();
 
         consumer.ReceivedAsync += async (_, ea) =>
         {
+            var json = Encoding.UTF8.GetString(ea.Body.ToArray());
+            var envelope =
+                JsonSerializer.Deserialize<MessageEnvelope<NotificationMessage>>(json)!;
+
+            lock (lockObj)
+            {
+                buffer.Add((ea.DeliveryTag, envelope.Payload));
+            }
+
+            if (buffer.Count >= BatchSize ||
+                DateTime.UtcNow - lastFlush >= FlushInterval)
+            {
+                await SendProcessAsync();
+            }
+        };
+
+        async Task SendProcessAsync()
+        {
+            List<(ulong tag, NotificationMessage msg)> batch;
+
+            lock (lockObj)
+            {
+                if (buffer.Count == 0)
+                    return;
+
+                batch = [.. buffer];
+                buffer.Clear();
+                lastFlush = DateTime.UtcNow;
+            }
+
             try
             {
-                var json = Encoding.UTF8.GetString(ea.Body.ToArray());
-                var envelope =
-                    JsonSerializer.Deserialize<MessageEnvelope<NotificationMessage>>(json)!;
+                await _handler.HandleBatchAsync(batch.Select(x => x.msg));
 
-                await _handler.HandleAsync(envelope.Payload);
-
-                await _channel.BasicAckAsync(ea.DeliveryTag, false, stoppingToken);
+                foreach (var item in batch)
+                    await _channel.BasicAckAsync(item.tag, false, stoppingToken);
             }
             catch
             {
-                await _channel.BasicNackAsync(
-                    ea.DeliveryTag,
-                    false,
-                    requeue: false,
-                    stoppingToken);
+                foreach (var item in batch)
+                    await _channel.BasicNackAsync(item.tag, false, requeue: false, stoppingToken);
             }
-        };
+        }
+
 
         await _channel.BasicConsumeAsync(
             queue: _options.Queue,

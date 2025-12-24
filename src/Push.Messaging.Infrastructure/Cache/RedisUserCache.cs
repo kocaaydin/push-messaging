@@ -17,6 +17,7 @@ public class RedisUserCache : IUserCache
     public async Task<UserCacheDto?> GetAsync(string userName)
     {
         var value = await _redis.StringGetAsync($"user:{userName}");
+        
         return value.HasValue
             ? JsonSerializer.Deserialize<UserCacheDto>(value!)
             : null;

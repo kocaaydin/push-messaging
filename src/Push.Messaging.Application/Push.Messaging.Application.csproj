@@ -10,6 +10,7 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../Push.Messaging.Data/Push.Messaging.Data.csproj" />
     <ProjectReference Include="../Push.Messaging.Shared/Push.Messaging.Shared.csproj" />
   </ItemGroup>
 </Project>

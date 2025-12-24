@@ -13,10 +13,13 @@ public class UserRepository : IUserRepository
         _dbContext = dbContext;
     }
 
-    public async Task<List<User>> GetAllAsync()
+    public async Task<List<User>> GetPagedAsync(int page, int pageSize)
     {
         return await _dbContext.Users
             .AsNoTracking()
+            .OrderBy(x => x.Id)
+            .Skip(page * pageSize)
+            .Take(pageSize)
             .ToListAsync();
     }
 
@@ -25,5 +28,12 @@ public class UserRepository : IUserRepository
         return await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
+    }
+
+    public async Task<User?> GetByUserNameAsync(string userName)
+    {
+        return await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserName == userName);
     }
 }

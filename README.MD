@@ -82,6 +82,7 @@ MESSAGING
   - Prefetch ile kontrollü paralellik
   - Ack / Nack yönetimi
   - Firebase’e HTTP push
+  - Consumer tarafında opsiyonel olarak batch (100 msg / 2 sn) işleme
 
 --------------------------------------------------
 ÇALIŞTIRMA

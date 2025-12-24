@@ -18,25 +18,25 @@ public class FirebasePushHandler
         _httpClient = httpClient;
         _options = options.Value;
     }
-
-    public async Task HandleAsync(NotificationMessage message)
+    public async Task HandleBatchAsync(IEnumerable<NotificationMessage> messages)
     {
         var payload = new
         {
-            to = $"/topics/user-{message.UserId}",
-            notification = new
+            messages = messages.Select(x => new
             {
-                title = message.Title,
-                body = message.Body
-            }
+                to = $"/topics/user-{x.UserId}",
+                notification = new
+                {
+                    title = x.Title,
+                    body = x.Body
+                }
+            })
         };
 
         var json = JsonConvert.SerializeObject(payload);
-        
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await _httpClient.PostAsync(_options.Url, content);
-
         response.EnsureSuccessStatusCode();
     }
 }
