@@ -89,8 +89,7 @@ MESSAGING
 
 docker compose up -d
 
-API & Swagger:
-http://localhost:5297
+API ve Consumer projeleri ayrı process’lerdir, birlikte çalıştırılmalıdır.
 
 --------------------------------------------------
 NOTLAR
